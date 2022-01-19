@@ -1,0 +1,40 @@
+#!/bin/sh
+# nodes requested
+#SBATCH -p Ubuntu_TEST # nodes requested
+#SBATCH -n 1 # tasks requested
+#SBATCH --gres=gpu:4 # use 1 GPU
+#SBATCH --mem=19000 # memory in Mb
+#SBATCH --nodelist landonia21
+#SBATCH -t 1:00:00 # time requested in hour:minute:seconds
+
+# Setup CUDA and CUDNN related paths
+export CUDA_HOME=/opt/cuda-11.2.0
+
+export CUDNN_HOME=/opt/cudnn-11.2-8.1.1.33
+# Setup CUDA and CUDNN related paths
+
+export STUDENT_ID=s2259628
+
+export LD_LIBRARY_PATH=${CUDNN_HOME}/lib64:${CUDA_HOME}/lib64:$LD_LIBRARY_PATH
+
+export LIBRARY_PATH=${CUDNN_HOME}/lib64:$LIBRARY_PATH
+
+export CPATH=${CUDNN_HOME}/include:$CPATH
+
+export PATH=${CUDA_HOME}/bin:${PATH}
+
+export PYTHON_PATH=$PATH
+
+# Setup a folder in the very fast scratch disk which can be used for storing experiment objects and any other files
+# that may require storage during execution.
+mkdir -p /disk/scratch/s2259628
+
+export TMPDIR=/disk/scratch/s2259628/
+export TMP=/disk/scratch/s2259628/
+
+# Activate the relevant virtual environment:
+
+source /home/s2259628/miniconda3/bin/activate mlp
+
+# Run the python script that will train our network
+python segment.py
