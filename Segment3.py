@@ -134,68 +134,6 @@ def gaussian_blur(v1):
     return v1
 
 
-# In[14]:
-
-
-class Patches(tf.keras.layers.Layer):
-    def __init__(self, patch_size):
-        super(Patches, self).__init__()
-        self.patch_size = patch_size
-
-    def call(self, images):
-        batch_size = tf.shape(images)[0]
-        patches = tf.image.extract_patches(
-            images=images,
-            sizes=[1, self.patch_size, self.patch_size, 1],
-            strides=[1, self.patch_size, self.patch_size, 1],
-            rates=[1, 1, 1, 1],
-            padding="VALID",
-        )
-        #patch_dims = patches.shape[-1]
-        #patches = tf.reshape(patches, [batch_size, -1, patch_dims])
-        return patches
-
-
-# In[15]:
-
-
-@tf.function
-def patchLoss(image, segment, window_size=(12,12)):
-  with tf.GradientTape(persistent=True) as tape:
-      loss = 0
-      patch_segments = []
-      segmented = model13(image)
-      for i, row in enumerate(range(12)):
-        patch_segs_row = []
-        for j, col in enumerate(range(12)):
-            im_part = tf.concat([image[:,12*j:12*(j+1), 12*i:12*(i+1)], segmented[:,12*j:12*(j+1), 12*i:12*(i+1)]], 3)
-            processed = conv(im_part)
-            #im_partrot = numpy.rot90(im_part)
-            patch_segs_row.append(processed)
-        patch_segments.append(patch_segs_row)
-      patch_segments = tf.convert_to_tensor(np.array(patch_segments))
-      patch_segments_attent = tf.keras.layers.MultiHeadAttention(num_heads=2, key_dim=2, attention_axes=(2, 3))(patch_segments,patch_segments)
-      attentRepresent = tf.keras.layers.MultiHeadAttention(num_heads=2, key_dim=2, attention_axes=(2, 3))(patch_segments_attent,patch_segments_attent)
-      attentRepresent = tf.keras.layers.MultiHeadAttention(num_heads=2, key_dim=2, attention_axes=(2, 3))(attentRepresent,attentRepresent)
-      #preds_patch = []
-      for i, row in enumerate(range(12)):
-        preds_patch_row = []
-        for j, col in enumerate(range(12)):
-            finalRepresent = attentRepresent[i, j]
-            recon = deconv(finalRepresent)
-            loss += criterion2(y_pred=recon, y_true=image[:,12*j:12*(j+1),12*i:12*(i+1)])
-            tf.print(loss)
-            preds_patch_row.append(im_part)
-        #preds_patch.append(patch_segs_row)
-      variables = conv.trainable_variables
-      gradients = tape.gradient(loss, variables)
-      optimizer.apply_gradients(zip(gradients, variables))
-      variables = deconv.trainable_variables
-      gradients = tape.gradient(loss, variables)
-      optimizer.apply_gradients(zip(gradients, variables))
-      del tape
-
-
 # In[16]:
 
 
@@ -208,43 +146,6 @@ def label_enc(classname):
     return 0
     #return tf.one_hot(indices = 0, depth = len(labels)+1)
 
-
-# In[33]:
-
-
-def model():
-    inputs = tf.keras.Input(shape=(384, 384, 3))
-    inputs_size = (384,384,3)
-    base = tf.keras.applications.resnet_v2.ResNet50V2(include_top=False, weights='imagenet',
-    input_shape=inputs_size, pooling=None,
-    classifier_activation='softmax')
-    base.trainable=True
-    end_points = base(inputs)
-    print(base.summary())
-    end_points = base.get_layer('conv4_block6_out').output
-    bn = tf.keras.layers.BatchNormalization()(end_points)
-    #end_points = tf.keras.models.Model(inputs=base.input, outputs=base.get_layer('conv4_block4_out').output)
-    sp_conv1 = Conv2D(256, kernel_size=3, dilation_rate=6, activation='relu', padding='same', input_shape=(384,384,3))(bn)
-    sp_conv2 = Conv2D(256, kernel_size=3, dilation_rate=12, activation='relu', padding='same',input_shape=(384,384,3))(bn)
-    sp_conv3 = Conv2D(256, kernel_size=3, dilation_rate=18, activation='relu', padding='same',input_shape=(384,384,3))(bn)
-    image_level_features = tf.reduce_mean(end_points, [1, 2], name='global_average_pooling', keepdims=True)
-    image_level_features = Conv2D(256,(1,1),activation='relu', padding='same')(image_level_features)
-    size = tf.shape(end_points)[1:3]
-    image_level_features = tf.image.resize(image_level_features, size, method=tf.image.ResizeMethod.BILINEAR)
-    bn = tf.keras.layers.BatchNormalization()(image_level_features)
-    print("current shape of pool")
-    print(bn.shape)
-    net = tf.keras.layers.Concatenate(axis=3)([sp_conv1,sp_conv2,sp_conv3,bn])
-    net = tf.keras.layers.BatchNormalization()(net)
-    final = Conv2D(2*256, (1, 1), activation='relu', padding='same')(net)
-    final = tf.keras.layers.BatchNormalization()(final)
-    final = Conv2D(256, (1, 1), activation='relu', padding='same')(final)
-    final = tf.keras.layers.BatchNormalization()(final)
-    process = Conv2D(256, (1, 1), activation='relu', padding='same')(final)
-    process = tf.keras.layers.BatchNormalization()(process)
-    preds = tf.image.resize(process, (384,384), method=tf.image.ResizeMethod.BILINEAR)
-    preds = Conv2D(21, (1, 1), activation='softmax', padding='same')(preds)
-    return tf.keras.Model(inputs = base.input, outputs = preds)
 
 
 # In[24]:
@@ -423,8 +324,6 @@ def preprocess(X, y):
   return X_train, y_train, X_test, y_test, model1
 
 
-
-
 # In[36]:
 _MIN_SCALE = 0.5
 _MAX_SCALE = 2.0
@@ -589,11 +488,8 @@ import segmentation_models as sm
 
 
 
-
 #X_train, X_valid, y_train, y_valid = sk.model_selection.train_test_split(X_seg,y_seg,test_size=0.33, shuffle=True)
 
-
-# In[29]:
 
 
 BACKBONE = 'resnet50'
@@ -635,13 +531,7 @@ with strategy.scope():
 
 # In[ ]:
 
-
-#model2.fit(input_fn=lambda: input_fn(True,'/home/arpit_manu6/dataset', 8, 4),epochs=300,steps_per_epoch=1,verbose=2)
 for i in range(100):
     train_dataset = input_fn(True,'/home/arpit_manu6/dataset', 8, model2, 4)
-    print("Hi")
     val_set = input_fn(False,'/home/arpit_manu6/dataset', 8, model2, 4)
     model2.fit(train_dataset,validation_data=val_set,epochs=100,steps_per_epoch=1,validation_steps=1,verbose=2)
-
-# In[33]:
-
