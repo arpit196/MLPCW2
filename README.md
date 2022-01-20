@@ -6,4 +6,4 @@ Steps for data preparation
 4. Run the following in console, replace the path with your extracted path of pascalvoc dataset :python create_pascal_tf_record.py --data_dir /home/arpit_manu6/train/.jupyter/VOCdevkit/VOC2012 \
                                   --image_data_dir /home/arpit_manu6/train.jupyter/VOCdevkit/VOC2012/JPEGImages \
                                   --label_data_dir /home/arpit_manu6/.jupyter/VOCdevkit/VOC2012/SegmentationClass 
-5. 
+5. This will create a train and a val file in a folder named dataset, find its location and update the path '/home/arpit_manu6/dataset' in file Segment3.py at line with your tf_records path
