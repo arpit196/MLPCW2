@@ -316,6 +316,18 @@ def read_content(xml_file: str):
 
 # In[ ]:
 
+class UpdatedMeanIoU(tf.keras.metrics.MeanIoU):
+  def __init__(self,
+               y_true=None,
+               y_pred=None,
+               num_classes=None,
+               name=None,
+               dtype=None):
+    super(UpdatedMeanIoU, self).__init__(num_classes = num_classes,name=name, dtype=dtype)
+
+  def update_state(self, y_true, y_pred, sample_weight=None):
+    y_pred = tf.math.argmax(y_pred, axis=-1)
+    return super().update_state(y_true, y_pred, sample_weight)
 
 def preprocess(X, y):
   X_train, X_test , y_train, y_test = train_test_split(X,y,test_size=0.10)
@@ -328,7 +340,20 @@ def preprocess(X, y):
 _MIN_SCALE = 0.5
 _MAX_SCALE = 2.0
 _IGNORE_LABEL = 255
-IMAGE_SIZE = 384
+IMAGE_SIZE = 512
+
+mydict={0:0, 14:1,19:2,112:3,220:0, 147:5, 52:6, 57:7, 19:8, 132:9, 75:10, 33:11, 38:11, 89:12, 150:13, 47:14, 33:15, 52:16,113:17,47:18, 37:19, 72:20, 255:0 }
+keys = list(mydict.keys())
+values = [mydict[k] for k in keys]
+table = tf.lookup.StaticHashTable(
+  tf.lookup.KeyValueTensorInitializer(keys, values, key_dtype=tf.int32, value_dtype=tf.int32),  default_value=0
+)
+
+def lab(image, label):
+    print(table.lookup(label))
+    label2 = tf.cast(tf.image.convert_image_dtype(table.lookup(label), dtype=tf.int32),dtype=tf.int32)
+    #tf.py_function(func=disp, inp=[image, label2], Tout=tf.int32)
+    return image, label2
 
 def get_filenames(is_training, data_dir):
   """Return a list of filenames.
@@ -368,12 +393,12 @@ def parse_record(raw_record):
   image = tf.image.decode_image(
       tf.reshape(parsed['image/encoded'], shape=[]), 3)
   image = tf.cast(tf.image.convert_image_dtype(image, dtype=tf.uint8),dtype=tf.float32)
-  image.set_shape([384, 384, 3])
+  image.set_shape([None, None, 3])
 
   label = tf.image.decode_image(
       tf.reshape(parsed['label/encoded'], shape=[]), 1)
   label = tf.cast(tf.image.convert_image_dtype(label, dtype=tf.uint8),dtype=tf.int32)
-  label.set_shape([384, 384, 1])
+  label.set_shape([None, None, 1])
 
   return image, label
 
@@ -386,7 +411,7 @@ def preprocess_image(image, label, is_training):
 
     # Randomly crop or pad a [_HEIGHT, _WIDTH] section of the image and label.
     image, label = preprocessing.random_crop_or_pad_image_and_label(
-        image, label, 384, 384, _IGNORE_LABEL)
+        image, label, IMAGE_SIZE, IMAGE_SIZE, _IGNORE_LABEL)
 
     # Randomly flip the image and label horizontally.
     image, label = preprocessing.random_flip_left_right_image_and_label(
@@ -432,6 +457,8 @@ def input_fn(is_training, data_dir, batch_size, model, num_epochs=1):
 
   dataset = dataset.map(parse_record)
   dataset = dataset.map(
+          lambda image, label: lab(image, label))
+  dataset = dataset.map(
           lambda image, label: preprocess_image(image, label, is_training))
     #dataset = dataset.prefetch(batch_size)
     #print(tf.shape(dataset))
@@ -449,9 +476,6 @@ def input_fn(is_training, data_dir, batch_size, model, num_epochs=1):
     #print(tf.shape(images))
     #print(tf.shape(labels))
     #print(tf.unique(tf.reshape(labels,-1)))
-    #images = tf.cast(images,dtype=tf.float32)
-    #labels = tf.cast(labels,dtype=tf.float32)
-    #model.fit(x=images,y=labels,epochs=100,steps_per_epoch=1,verbose=2)
   return dataset
 
 
@@ -513,14 +537,14 @@ total_loss = dice_loss + (1 * focal_loss)
 
 optim = tf.keras.optimizers.Adam(0.0001)
 
-metrics = [sm.metrics.IOUScore(threshold=0.5), sm.metrics.FScore(threshold=0.5),'sparse_categorical_accuracy']
+metrics = [UpdatedMeanIoU(num_classes=21), sm.metrics.FScore(threshold=0.5),'sparse_categorical_accuracy']
 
 # In[41]:
 
 strategy = tf.distribute.MirroredStrategy()
 
 with strategy.scope():
-    model2 = DeeplabV3Plus(image_size=384, num_classes=21)
+    model2 = DeeplabV3Plus(image_size=512, num_classes=21)
     loss = keras.losses.SparseCategoricalCrossentropy()
     model2.compile(
         optimizer=keras.optimizers.Adam(learning_rate=0.001),
