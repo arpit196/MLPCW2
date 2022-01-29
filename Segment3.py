@@ -547,7 +547,7 @@ with strategy.scope():
     model2 = DeeplabV3Plus(image_size=512, num_classes=21)
     loss = keras.losses.SparseCategoricalCrossentropy()
     model2.compile(
-        optimizer=keras.optimizers.Adam(learning_rate=0.001),
+        optimizer=keras.optimizers.Adam(learning_rate=0.0001),
         loss=loss,
         metrics=metrics,
     )
@@ -555,7 +555,9 @@ with strategy.scope():
 
 # In[ ]:
 
-for i in range(100):
-    train_dataset = input_fn(True,'/home/arpit_manu6/dataset', 8, model2, 4)
-    val_set = input_fn(False,'/home/arpit_manu6/dataset', 8, model2, 4)
-    model2.fit(train_dataset,validation_data=val_set,epochs=100,steps_per_epoch=1,validation_steps=1,verbose=2)
+for i in range(1000):
+    train_dataset = input_fn(True,'/home/arpit_manu6/dataset', 10, model2, 4)
+    val_set = input_fn(False,'/home/arpit_manu6/dataset', 10, model2, 4)
+    model2.fit(train_dataset,validation_data=val_set,epochs=20,steps_per_epoch=1,validation_steps=1,verbose=2)
+    if(i%10==0):
+        model2.save("my_model")
