@@ -481,7 +481,7 @@ def input_fn(is_training, data_dir, batch_size, model, num_epochs=1):
 
 def DeeplabV3Plus(image_size, num_classes):
     model_input = keras.Input(shape=(image_size, image_size, 3))
-    resnet50 = keras.applications.ResNet50(
+    resnet50 = keras.applications.ResNet101(
         weights="imagenet", include_top=False, input_tensor=model_input
     )
     x = resnet50.get_layer("conv4_block6_2_relu").output
